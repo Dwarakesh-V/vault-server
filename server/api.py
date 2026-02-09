@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel
+from pathlib import Path
 from server.auth import (
     register_user,
     login_user,
@@ -7,6 +8,7 @@ from server.auth import (
     require_auth,
 )
 from server.storage import store_blob, load_blob
+from server.backup import create_backup, restore_backup, list_backups, get_backup_path
 
 app = FastAPI()
 
@@ -61,4 +63,39 @@ def put_vault(req: VaultReq, authorization: str = Header()):
     except ValueError:
         raise HTTPException(401, "Unauthorized")
     store_blob(user, req.blob)
+    return {"ok": True}
+
+class RestoreReq(BaseModel):
+    filename: str
+
+@app.get("/backups")
+def get_backups(authorization: str = Header()):
+    try:
+        require_auth(authorization)
+    except ValueError:
+        raise HTTPException(401, "Unauthorized")
+    return {"backups": list_backups()}
+
+@app.post("/backups")
+def create_new_backup(authorization: str = Header()):
+    try:
+        require_auth(authorization)
+    except ValueError:
+        raise HTTPException(401, "Unauthorized")
+    path = create_backup()
+    return {"filename": Path(path).name}
+
+@app.post("/backups/restore")
+def restore_backup_endpoint(req: RestoreReq, authorization: str = Header()):
+    try:
+        require_auth(authorization)
+    except ValueError:
+        raise HTTPException(401, "Unauthorized")
+    
+    try:
+        path = get_backup_path(req.filename)
+        restore_backup(path)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+        
     return {"ok": True}
