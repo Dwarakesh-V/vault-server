@@ -6,6 +6,10 @@ from server.auth import (
     login_user,
     get_auth_salt,
     require_auth,
+    setup_mfa,
+    verify_mfa,
+    check_mfa_enabled,
+    disable_mfa,
 )
 from server.storage import store_blob, load_blob
 from server.backup import create_backup, restore_backup, list_backups, get_backup_path
@@ -23,6 +27,18 @@ class LoginReq(BaseModel):
 
 class VaultReq(BaseModel):
     blob: dict
+
+class MFAVerifyReq(BaseModel):
+    username: str
+    code: str
+
+class MFALoginReq(BaseModel):
+    username: str
+    verifier: str
+    mfa_code: str
+
+class RestoreReq(BaseModel):
+    filename: str
 
 @app.get("/auth_salt/{username}")
 def auth_salt(username: str):
@@ -65,8 +81,74 @@ def put_vault(req: VaultReq, authorization: str = Header()):
     store_blob(user, req.blob)
     return {"ok": True}
 
-class RestoreReq(BaseModel):
-    filename: str
+@app.post("/mfa/setup")
+def mfa_setup(authorization: str = Header()):
+    """Setup MFA for authenticated user - returns QR code data"""
+    try:
+        user = require_auth(authorization)
+    except ValueError:
+        raise HTTPException(401, "Unauthorized")
+    
+    try:
+        mfa_data = setup_mfa(user)
+        return mfa_data
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+@app.post("/mfa/verify")
+def mfa_verify(req: MFAVerifyReq):
+    """Verify MFA code and enable MFA for user"""
+    try:
+        is_valid = verify_mfa(req.username.lower(), req.code.strip())
+        if is_valid:
+            return {"ok": True, "message": "MFA enabled successfully"}
+        else:
+            raise HTTPException(400, "Invalid MFA code")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+@app.post("/login/mfa")
+def login_with_mfa(req: MFALoginReq):
+    """Login with username, password, and MFA code"""
+    username = req.username.lower()
+    try:
+        # First verify password
+        token = login_user(username, req.verifier)
+    except ValueError:
+        raise HTTPException(401, "Invalid username or password")
+    
+    try:
+        # Then verify MFA code
+        is_valid = verify_mfa(username, req.mfa_code.strip(), enable_on_success=False)
+        if not is_valid:
+            raise HTTPException(401, "Invalid MFA code")
+        
+        return {"token": token}
+    except ValueError as e:
+        if "MFA not set up" in str(e):
+            raise HTTPException(400, "MFA not enabled for this user")
+        raise HTTPException(401, "MFA verification failed")
+
+@app.get("/mfa/status/{username}")
+def mfa_status(username: str):
+    """Check if user has MFA enabled"""
+    username = username.lower()
+    enabled = check_mfa_enabled(username)
+    return {"mfa_enabled": enabled}
+
+@app.post("/mfa/disable")
+def mfa_disable(authorization: str = Header()):
+    """Disable MFA for authenticated user"""
+    try:
+        user = require_auth(authorization)
+    except ValueError:
+        raise HTTPException(401, "Unauthorized")
+    
+    try:
+        disable_mfa(user)
+        return {"ok": True, "message": "MFA disabled successfully"}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
 @app.get("/backups")
 def get_backups(authorization: str = Header()):
@@ -97,5 +179,5 @@ def restore_backup_endpoint(req: RestoreReq, authorization: str = Header()):
         restore_backup(path)
     except ValueError as e:
         raise HTTPException(400, str(e))
-        
+    
     return {"ok": True}
