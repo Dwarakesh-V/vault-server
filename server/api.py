@@ -13,6 +13,7 @@ from server.auth import (
 )
 from server.storage import store_blob, load_blob
 from server.backup import create_backup, restore_backup, list_backups, get_backup_path
+from server.audit import log_action, get_logs
 
 app = FastAPI()
 
@@ -51,7 +52,9 @@ def auth_salt(username: str):
 @app.post("/register")
 def register(req: RegisterReq):
     try:
-        register_user(req.username.lower(), req.salt, req.verifier)
+        username = req.username.lower()
+        register_user(username, req.salt, req.verifier)
+        log_action(username, "REGISTER", "User registered")
         return {"ok": True}
     except ValueError:
         raise HTTPException(400, "User exists")
@@ -59,9 +62,12 @@ def register(req: RegisterReq):
 @app.post("/login")
 def login(req: LoginReq):
     try:
-        token = login_user(req.username.lower(), req.verifier)
+        username = req.username.lower()
+        token = login_user(username, req.verifier)
+        log_action(username, "LOGIN", "User logged in")
         return {"token": token}
     except ValueError:
+        # We can't log easily if login fails as we don't have a trusted user, but we could try
         raise HTTPException(401, "Invalid credentials")
 
 @app.get("/vault")
@@ -70,6 +76,8 @@ def get_vault(authorization: str = Header()):
         user = require_auth(authorization)
     except ValueError:
         raise HTTPException(401, "Unauthorized")
+    
+    log_action(user, "VAULT_ACCESS", "Vault retrieved")
     return {"blob": load_blob(user)}
 
 @app.post("/vault")
@@ -79,6 +87,7 @@ def put_vault(req: VaultReq, authorization: str = Header()):
     except ValueError:
         raise HTTPException(401, "Unauthorized")
     store_blob(user, req.blob)
+    log_action(user, "VAULT_UPDATE", "Vault updated")
     return {"ok": True}
 
 @app.post("/mfa/setup")
@@ -91,6 +100,7 @@ def mfa_setup(authorization: str = Header()):
     
     try:
         mfa_data = setup_mfa(user)
+        log_action(user, "MFA_SETUP_INIT", "MFA setup initiated")
         return mfa_data
     except ValueError as e:
         raise HTTPException(400, str(e))
@@ -99,10 +109,13 @@ def mfa_setup(authorization: str = Header()):
 def mfa_verify(req: MFAVerifyReq):
     """Verify MFA code and enable MFA for user"""
     try:
-        is_valid = verify_mfa(req.username.lower(), req.code.strip())
+        username = req.username.lower()
+        is_valid = verify_mfa(username, req.code.strip())
         if is_valid:
+            log_action(username, "MFA_ENABLED", "MFA verified and enabled")
             return {"ok": True, "message": "MFA enabled successfully"}
         else:
+            log_action(username, "MFA_VERIFY_FAIL", "MFA verification failed")
             raise HTTPException(400, "Invalid MFA code")
     except ValueError as e:
         raise HTTPException(400, str(e))
@@ -121,8 +134,10 @@ def login_with_mfa(req: MFALoginReq):
         # Then verify MFA code
         is_valid = verify_mfa(username, req.mfa_code.strip(), enable_on_success=False)
         if not is_valid:
+            log_action(username, "LOGIN_MFA_FAIL", "MFA code invalid during login")
             raise HTTPException(401, "Invalid MFA code")
         
+        log_action(username, "LOGIN_MFA_SUCCESS", "Logged in with MFA")
         return {"token": token}
     except ValueError as e:
         if "MFA not set up" in str(e):
@@ -146,6 +161,7 @@ def mfa_disable(authorization: str = Header()):
     
     try:
         disable_mfa(user)
+        log_action(user, "MFA_DISABLED", "MFA disabled")
         return {"ok": True, "message": "MFA disabled successfully"}
     except ValueError as e:
         raise HTTPException(400, str(e))
@@ -153,31 +169,44 @@ def mfa_disable(authorization: str = Header()):
 @app.get("/backups")
 def get_backups(authorization: str = Header()):
     try:
-        require_auth(authorization)
+        user = require_auth(authorization)
     except ValueError:
         raise HTTPException(401, "Unauthorized")
+    log_action(user, "BACKUP_LIST", "Listed backups")
     return {"backups": list_backups()}
 
 @app.post("/backups")
 def create_new_backup(authorization: str = Header()):
     try:
-        require_auth(authorization)
+        user = require_auth(authorization)
     except ValueError:
         raise HTTPException(401, "Unauthorized")
     path = create_backup()
-    return {"filename": Path(path).name}
+    filename = Path(path).name
+    log_action(user, "BACKUP_CREATE", f"Created backup: {filename}")
+    return {"filename": filename}
 
 @app.post("/backups/restore")
 def restore_backup_endpoint(req: RestoreReq, authorization: str = Header()):
     try:
-        require_auth(authorization)
+        user = require_auth(authorization)
     except ValueError:
         raise HTTPException(401, "Unauthorized")
     
     try:
         path = get_backup_path(req.filename)
         restore_backup(path)
+        log_action(user, "BACKUP_RESTORE", f"Restored backup: {req.filename}")
     except ValueError as e:
         raise HTTPException(400, str(e))
     
     return {"ok": True}
+
+@app.get("/logs")
+def get_audit_logs(authorization: str = Header()):
+    try:
+        user = require_auth(authorization)
+    except ValueError:
+        raise HTTPException(401, "Unauthorized")
+    
+    return {"logs": get_logs(user)}
