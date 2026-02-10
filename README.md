@@ -60,6 +60,25 @@ Once the server is running, you can access:
 - **Interactive API Docs**: http://localhost:8000/docs
 - **Alternative Docs**: http://localhost:8000/redoc
 
+### Running with HTTPS (Secure)
+
+To run the server securely with HTTPS/TLS (User Story 5.2):
+
+1. **Generate SSL Certificates**:
+   Run the utility script to generate `cert.pem` and `key.pem` for local development:
+   ```bash
+   python generate_cert.py
+   ```
+
+2. **Start the Secure Server**:
+   Use the provided runner script:
+   ```bash
+   python run_server.py
+   ```
+   The server will be available at `https://localhost:8000`.
+   
+   **Note**: Your browser will likely show a warning about a self-signed certificate. This is expected for local development; you can proceed safely by clicking "Advanced" -> "Proceed to localhost (unsafe)".
+
 ## 🔐 Multi-Factor Authentication (MFA)
 
 ### Supported Authenticator Apps
