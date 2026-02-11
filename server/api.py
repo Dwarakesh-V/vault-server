@@ -65,9 +65,15 @@ def register(req: RegisterReq, request: Request):
 def login(req: LoginReq, request: Request):
     client_ip = request.client.host
     try:
+        security_manager.check_rate_limit(client_ip)
         token = login_user(req.username.lower(), req.verifier)
+        security_manager.reset_attempts(client_ip)
         return {"token": token}
-    except ValueError:
+    except ValueError as e:
+        if "IP blocked" in str(e):
+             raise HTTPException(429, str(e))
+        if "Invalid credentials" in str(e):
+            security_manager.record_failed_attempt(client_ip, req.username)
         raise HTTPException(401, "Invalid credentials")
 
 @app.get("/vault")
