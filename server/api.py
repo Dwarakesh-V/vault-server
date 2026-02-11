@@ -13,7 +13,7 @@ from server.auth import (
     disable_mfa,
 )
 from server.storage import store_blob, load_blob
-from server.backup import create_backup, restore_backup, list_backups, get_backup_path
+from server.backup import create_backup, restore_backup, list_backups, get_backup_path, delete_backup
 from server.audit import log_action, get_logs
 
 app = FastAPI()
@@ -182,8 +182,9 @@ def get_backups(authorization: str = Header()):
         user = require_auth(authorization)
     except ValueError:
         raise HTTPException(401, "Unauthorized")
+    
     log_action(user, "BACKUP_LIST", "Listed backups")
-    return {"backups": list_backups()}
+    return {"backups": list_backups(user)}
 
 @app.post("/backups")
 def create_new_backup(authorization: str = Header()):
@@ -191,10 +192,14 @@ def create_new_backup(authorization: str = Header()):
         user = require_auth(authorization)
     except ValueError:
         raise HTTPException(401, "Unauthorized")
-    path = create_backup()
-    filename = Path(path).name
-    log_action(user, "BACKUP_CREATE", f"Created backup: {filename}")
-    return {"filename": filename}
+    
+    try:
+        path = create_backup(user)
+        filename = Path(path).name
+        log_action(user, "BACKUP_CREATE", f"Created backup: {filename}")
+        return {"filename": filename}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
 @app.post("/backups/restore")
 def restore_backup_endpoint(req: RestoreReq, authorization: str = Header()):
@@ -205,12 +210,26 @@ def restore_backup_endpoint(req: RestoreReq, authorization: str = Header()):
     
     try:
         path = get_backup_path(req.filename)
-        restore_backup(path)
+        restore_backup(path, user)
         log_action(user, "BACKUP_RESTORE", f"Restored backup: {req.filename}")
     except ValueError as e:
         raise HTTPException(400, str(e))
     
     return {"ok": True}
+
+@app.delete("/backups/{filename}")
+def delete_backup_endpoint(filename: str, authorization: str = Header()):
+    try:
+        user = require_auth(authorization)
+    except ValueError:
+        raise HTTPException(401, "Unauthorized")
+    
+    try:
+        delete_backup(filename, user)
+        log_action(user, "BACKUP_DELETE", f"Deleted backup: {filename}")
+        return {"ok": True, "message": "Backup deleted successfully"}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
 @app.get("/logs")
 def get_audit_logs(authorization: str = Header()):

@@ -13,5 +13,33 @@
     "mfa_secret": null,
     "mfa_enabled": false,
     "backup_codes": []
+  },
+  "user1_1770803340": {
+    "salt": "salt",
+    "verifier": "verifier",
+    "mfa_secret": null,
+    "mfa_enabled": false,
+    "backup_codes": []
+  },
+  "user2_1770803340": {
+    "salt": "salt",
+    "verifier": "verifier",
+    "mfa_secret": null,
+    "mfa_enabled": false,
+    "backup_codes": []
+  },
+  "del_u1_1770804967": {
+    "salt": "salt",
+    "verifier": "verifier",
+    "mfa_secret": null,
+    "mfa_enabled": false,
+    "backup_codes": []
+  },
+  "del_u2_1770804967": {
+    "salt": "salt",
+    "verifier": "verifier",
+    "mfa_secret": null,
+    "mfa_enabled": false,
+    "backup_codes": []
   }
 }
