@@ -1,4 +1,5 @@
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Request
+from server.security import security_manager
 from pydantic import BaseModel
 from pathlib import Path
 from server.auth import (
@@ -50,24 +51,23 @@ def auth_salt(username: str):
     return {"salt": salt}
 
 @app.post("/register")
-def register(req: RegisterReq):
+def register(req: RegisterReq, request: Request):
+    client_ip = request.client.host
     try:
-        username = req.username.lower()
-        register_user(username, req.salt, req.verifier)
-        log_action(username, "REGISTER", "User registered")
+        register_user(req.username.lower(), req.salt, req.verifier)
         return {"ok": True}
-    except ValueError:
+    except ValueError as e:
+        if "IP blocked" in str(e):
+            raise HTTPException(429, str(e))
         raise HTTPException(400, "User exists")
 
 @app.post("/login")
-def login(req: LoginReq):
+def login(req: LoginReq, request: Request):
+    client_ip = request.client.host
     try:
-        username = req.username.lower()
-        token = login_user(username, req.verifier)
-        log_action(username, "LOGIN", "User logged in")
+        token = login_user(req.username.lower(), req.verifier)
         return {"token": token}
     except ValueError:
-        # We can't log easily if login fails as we don't have a trusted user, but we could try
         raise HTTPException(401, "Invalid credentials")
 
 @app.get("/vault")
@@ -106,42 +106,52 @@ def mfa_setup(authorization: str = Header()):
         raise HTTPException(400, str(e))
 
 @app.post("/mfa/verify")
-def mfa_verify(req: MFAVerifyReq):
+def mfa_verify(req: MFAVerifyReq, request: Request):
     """Verify MFA code and enable MFA for user"""
+    client_ip = request.client.host
     try:
-        username = req.username.lower()
-        is_valid = verify_mfa(username, req.code.strip())
+        is_valid = verify_mfa(req.username.lower(), req.code.strip())
         if is_valid:
-            log_action(username, "MFA_ENABLED", "MFA verified and enabled")
             return {"ok": True, "message": "MFA enabled successfully"}
         else:
-            log_action(username, "MFA_VERIFY_FAIL", "MFA verification failed")
             raise HTTPException(400, "Invalid MFA code")
     except ValueError as e:
+        if "IP blocked" in str(e):
+             raise HTTPException(429, str(e))
         raise HTTPException(400, str(e))
 
 @app.post("/login/mfa")
-def login_with_mfa(req: MFALoginReq):
+def login_with_mfa(req: MFALoginReq, request: Request):
     """Login with username, password, and MFA code"""
+    client_ip = request.client.host
     username = req.username.lower()
+    
+    try:
+        security_manager.check_rate_limit(client_ip)
+    except ValueError as e:
+        if "IP blocked" in str(e):
+             raise HTTPException(429, str(e))
+        raise
+
     try:
         # First verify password
         token = login_user(username, req.verifier)
     except ValueError:
+        security_manager.record_failed_attempt(client_ip, username)
         raise HTTPException(401, "Invalid username or password")
     
     try:
         # Then verify MFA code
         is_valid = verify_mfa(username, req.mfa_code.strip(), enable_on_success=False)
         if not is_valid:
-            log_action(username, "LOGIN_MFA_FAIL", "MFA code invalid during login")
             raise HTTPException(401, "Invalid MFA code")
         
-        log_action(username, "LOGIN_MFA_SUCCESS", "Logged in with MFA")
         return {"token": token}
     except ValueError as e:
         if "MFA not set up" in str(e):
             raise HTTPException(400, "MFA not enabled for this user")
+        if "IP blocked" in str(e): # Should be caught above, but good for safety
+            raise HTTPException(429, str(e))
         raise HTTPException(401, "MFA verification failed")
 
 @app.get("/mfa/status/{username}")

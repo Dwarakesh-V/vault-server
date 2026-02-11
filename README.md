@@ -232,6 +232,34 @@ Response:
 
 ## 🔧 Configuration
 
+### Security Features (User Stories 5.5 & 5.6)
+
+The server now tracks failed login attempts and blocks IPs to prevent brute-force attacks.
+
+#### Protected Endpoints
+- `/register`
+- `/login`
+- `/mfa/verify`
+- `/login/mfa`
+
+#### Rate Limits
+- **Threshold**: 5 failed attempts within 5 minutes.
+- **Block Duration**: 1 minute (Test Mode) / 15 minutes (Production).
+
+#### API Behavior - Frontend Integration
+When an IP is blocked, the API returns:
+- **Status Code**: `429 Too Many Requests`
+- **Response Body**:
+  ```json
+  {
+    "detail": "IP blocked due to too many failed attempts. Try again in 59 seconds."
+  }
+  ```
+
+**Frontend Requirements:**
+1.  Check for `429` status code on login/register failures.
+2.  Display the error message from `detail` to the user so they know why they are blocked and when to try again.
+
 ### Security Settings
 
 The server uses the following security configurations:

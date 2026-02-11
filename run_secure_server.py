@@ -13,5 +13,5 @@ if __name__ == "__main__":
         port=8000,
         ssl_keyfile="key.pem",
         ssl_certfile="cert.pem",
-        reload=True
+        reload=False
     )
