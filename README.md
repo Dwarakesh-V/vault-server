@@ -9,7 +9,7 @@ A secure, zero-knowledge password manager vault server with Multi-Factor Authent
 - **Multi-Factor Authentication (MFA)**: TOTP-based two-factor authentication using authenticator apps
 - **QR Code Setup**: Easy MFA setup with automatic QR code generation
 - **Backup Codes**: Recovery codes in case you lose access to your authenticator app
-- **RESTful API**: Simple and secure API for password vault operations
+- **RESTful API**: Simple and secure API for the password and the vault operations
 
 ## 📋 Requirements
 
