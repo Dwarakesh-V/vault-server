@@ -1,0 +1,214 @@
+[
+    {
+        // TC01: CREATE - basic single-entry vault; verifies filename prefix and encryption called
+        "name": "TC01 - Create backup for normal user with single entry",
+        "action": "CREATE",
+        "username": "alice",
+        "blob_data": {
+            "email": "pass123"
+        },
+        "expected_filename_prefix": "backup_alice_",
+        "expect_error": false
+    },
+    {
+        // TC02: CREATE - larger vault with multiple entries; verifies all data handled
+        "name": "TC02 - Create backup with multiple vault entries",
+        "action": "CREATE",
+        "username": "bob",
+        "blob_data": {
+            "gmail": "gm@il_p@ss",
+            "github": "gh_t0k3n_xyz",
+            "bank": "B@nkS3cur3!"
+        },
+        "expected_filename_prefix": "backup_bob_",
+        "expect_error": false
+    },
+    {
+        // TC03: CREATE - vault with special characters in values; verifies unicode/symbol handling
+        "name": "TC03 - Create backup with special characters in vault values",
+        "action": "CREATE",
+        "username": "charlie",
+        "blob_data": {
+            "site": "p@$$w0rd!#%^&*()\u00e9\u00e0\u00fc"
+        },
+        "expected_filename_prefix": "backup_charlie_",
+        "expect_error": false
+    },
+    {
+        // TC04: CREATE - empty vault dict; edge case to ensure {} is handled gracefully
+        "name": "TC04 - Create backup with empty vault",
+        "action": "CREATE",
+        "username": "dave",
+        "blob_data": {},
+        "expected_filename_prefix": "backup_dave_",
+        "expect_error": false
+    },
+    {
+        // TC05: CREATE - user with numeric username; verifies filenames work with numbers
+        "name": "TC05 - Create backup for user with numeric username",
+        "action": "CREATE",
+        "username": "user42",
+        "blob_data": {
+            "vault_key": "s3cr3t!"
+        },
+        "expected_filename_prefix": "backup_user42_",
+        "expect_error": false
+    },
+    {
+        // TC06: RESTORE - basic successful restore; verifies decrypted data written back
+        "name": "TC06 - Restore backup successfully (single entry)",
+        "action": "RESTORE",
+        "username": "alice",
+        "filename": "backup_alice_20260221_080000_123456.enc",
+        "file_content": "gAAAAABk_encrypted_alice_data",
+        "original_blob": {
+            "email": "pass123"
+        },
+        "expect_error": false
+    },
+    {
+        // TC07: RESTORE - large vault restore; verifies multi-entry blobs survive round-trip
+        "name": "TC07 - Restore backup with multiple vault entries",
+        "action": "RESTORE",
+        "username": "bob",
+        "filename": "backup_bob_20260221_080000_234567.enc",
+        "file_content": "gAAAAABk_encrypted_bob_data",
+        "original_blob": {
+            "gmail": "gm@il_p@ss",
+            "github": "gh_t0k3n_xyz",
+            "bank": "B@nkS3cur3!"
+        },
+        "expect_error": false
+    },
+    {
+        // TC08: RESTORE - wrong owner; must raise ValueError to prevent cross-user access
+        "name": "TC08 - Restore backup rejected when filename belongs to different user",
+        "action": "RESTORE_ERROR",
+        "username": "eve",
+        "filename": "backup_alice_20260221_080000_123456.enc",
+        "file_content": "irrelevant",
+        "original_blob": {},
+        "expect_error": true,
+        "expected_error": "Cannot restore backup: File does not belong to user"
+    },
+    {
+        // TC09: RESTORE - corrupted backup file (decrypt fails); must raise ValueError
+        "name": "TC09 - Restore backup fails on corrupted/tampered file",
+        "action": "RESTORE_CORRUPT",
+        "username": "charlie",
+        "filename": "backup_charlie_20260221_080000_345678.enc",
+        "file_content": "CORRUPTED_NOT_VALID_FERNET_DATA",
+        "original_blob": {},
+        "expect_error": true,
+        "expected_error": "Invalid key or corrupted backup"
+    },
+    {
+        // TC10: SECURITY - path traversal attempt on filename; must reject with ValueError
+        "name": "TC10 - Path traversal in filename is rejected by get_backup_path",
+        "action": "PATH_TRAVERSAL",
+        "username": "attacker",
+        "filename": "../server/secret.key",
+        "expect_error": true,
+        "expected_error": "Invalid filename"
+    },
+    {
+        // TC11: CREATE - deeply nested blob (JSON object inside object)
+        "name": "TC11 - Create backup with nested/complex blob structure",
+        "action": "CREATE",
+        "username": "nested_user",
+        "blob_data": {
+            "site": "https://example.com",
+            "credentials": {
+                "user": "admin",
+                "pass": "s3cur3!"
+            },
+            "notes": "2FA enabled"
+        },
+        "expected_filename_prefix": "backup_nested_user_",
+        "expect_error": false
+    },
+    {
+        // TC12: CREATE - username containing underscores; verifies parsing robustness
+        "name": "TC12 - Create backup for username with underscores",
+        "action": "CREATE",
+        "username": "my_test_user",
+        "blob_data": {
+            "key": "value"
+        },
+        "expected_filename_prefix": "backup_my_test_user_",
+        "expect_error": false
+    },
+    {
+        // TC13: CREATE - very large blob (100 entries); stress-tests encryption path
+        "name": "TC13 - Create backup with large vault (100 entries)",
+        "action": "CREATE_LARGE",
+        "username": "biguser",
+        "entry_count": 100,
+        "expected_filename_prefix": "backup_biguser_",
+        "expect_error": false
+    },
+    {
+        // TC14: CREATE - user has no data file on disk; must raise ValueError
+        "name": "TC14 - Create backup fails when user has no data file",
+        "action": "CREATE_NO_DATA",
+        "username": "ghostuser",
+        "expect_error": true,
+        "expected_error": "No data to backup for this user"
+    },
+    {
+        // TC15: RESTORE - blob with unicode values survives round-trip intact
+        "name": "TC15 - Restore backup preserves unicode characters in vault",
+        "action": "RESTORE",
+        "username": "unicode_user",
+        "filename": "backup_unicode_user_20260221_090000_111111.enc",
+        "file_content": "gAAAAABk_encrypted_unicode",
+        "original_blob": {
+            "site": "p@$$w0rd\u00e9\u00e0\u00fc\u4e2d\u6587"
+        },
+        "expect_error": false
+    },
+    {
+        // TC16: SECURITY - empty string filename; must reject (falsy filename check)
+        "name": "TC16 - Empty string filename rejected by get_backup_path",
+        "action": "PATH_TRAVERSAL",
+        "username": "attacker",
+        "filename": "",
+        "expect_error": true,
+        "expected_error": "Invalid filename"
+    },
+    {
+        // TC17: SECURITY - backslash path traversal; must reject due to backslash check
+        "name": "TC17 - Backslash path traversal rejected by get_backup_path",
+        "action": "PATH_TRAVERSAL",
+        "username": "attacker",
+        "filename": "backup_attacker_..\\..\\secret.key",
+        "expect_error": true,
+        "expected_error": "Invalid filename"
+    },
+    {
+        // TC18: DELETE - delete user's own backup; must succeed without error
+        "name": "TC18 - Delete own backup file succeeds",
+        "action": "DELETE",
+        "username": "alice",
+        "filename": "backup_alice_20260221_080000_123456.enc",
+        "expect_error": false
+    },
+    {
+        // TC19: DELETE - attempt to delete another user's backup; must raise ValueError
+        "name": "TC19 - Delete another user's backup is rejected",
+        "action": "DELETE_ERROR",
+        "username": "eve",
+        "filename": "backup_alice_20260221_080000_123456.enc",
+        "expect_error": true,
+        "expected_error": "Cannot delete backup: File does not belong to user"
+    },
+    {
+        // TC20: GET_PATH - file that does not exist; must raise ValueError
+        "name": "TC20 - get_backup_path raises ValueError for missing file",
+        "action": "GET_PATH_MISSING",
+        "username": "alice",
+        "filename": "backup_alice_19991231_235959_000000.enc",
+        "expect_error": true,
+        "expected_error": "Backup not found"
+    }
+]
