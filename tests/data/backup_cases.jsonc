@@ -1,7 +1,7 @@
 [
     {
-        // Ensures that data is correctly encrypted (Fernet header 'gAAAA') and saved with a timestamped filename.
-        "name": "Create Backup Success",
+        // TC1: Basic successful backup creation for a normal user
+        "name": "TC1 - Create Backup Success (normal user)",
         "action": "CREATE",
         "username": "testuser",
         "blob_data": {
@@ -11,17 +11,117 @@
         "expected_file_content_prefix": "gAAAA"
     },
     {
-        // Ensures that a valid encrypted backup file can be decrypted and restored to the user's data file.
-        "name": "Restore Backup Success",
+        // TC2: Backup creation with a larger vault blob (multiple entries)
+        "name": "TC2 - Create Backup with multiple vault entries",
+        "action": "CREATE",
+        "username": "alice",
+        "blob_data": {
+            "gmail": "pass123",
+            "github": "gh_token_xyz",
+            "bank": "s3cur3B@nk!"
+        },
+        "expected_filename_prefix": "backup_alice_",
+        "expected_file_content_prefix": "gAAAA"
+    },
+    {
+        // TC3: Backup creation for a user with special characters in vault values
+        "name": "TC3 - Create Backup with special characters in vault",
+        "action": "CREATE",
+        "username": "bob",
+        "blob_data": {
+            "site": "p@$$w0rd!#%^&*()"
+        },
+        "expected_filename_prefix": "backup_bob_",
+        "expected_file_content_prefix": "gAAAA"
+    },
+    {
+        // TC4: Backup creation for a user with an empty vault dict
+        "name": "TC4 - Create Backup with empty vault",
+        "action": "CREATE",
+        "username": "charlie",
+        "blob_data": {},
+        "expected_filename_prefix": "backup_charlie_",
+        "expected_file_content_prefix": "gAAAA"
+    },
+    {
+        // TC5: Backup creation with username that has numbers
+        "name": "TC5 - Create Backup for user with numeric username",
+        "action": "CREATE",
+        "username": "user123",
+        "blob_data": {
+            "vault_entry": "securepassword"
+        },
+        "expected_filename_prefix": "backup_user123_",
+        "expected_file_content_prefix": "gAAAA"
+    },
+    {
+        // TC6: Basic successful restore of a single-entry vault
+        "name": "TC6 - Restore Backup Success (single entry)",
         "action": "RESTORE",
         "username": "testuser",
-        "filename": "backup_testuser_2026.enc",
+        "filename": "backup_testuser_20260220_120000.enc",
         "file_content": "gAAAAABk...encrypted_data...",
         "original_blob": {
             "secret": "my_secrets"
         },
         "expected_restored_blob": {
             "secret": "my_secrets"
+        }
+    },
+    {
+        // TC7: Restore backup for a vault with multiple entries
+        "name": "TC7 - Restore Backup with multiple entries",
+        "action": "RESTORE",
+        "username": "alice",
+        "filename": "backup_alice_20260220_130000.enc",
+        "file_content": "gAAAAABk...encrypted_data_alice...",
+        "original_blob": {
+            "gmail": "pass123",
+            "github": "gh_token_xyz",
+            "bank": "s3cur3B@nk!"
+        },
+        "expected_restored_blob": {
+            "gmail": "pass123",
+            "github": "gh_token_xyz",
+            "bank": "s3cur3B@nk!"
+        }
+    },
+    {
+        // TC8: Restore backup with special characters in vault values
+        "name": "TC8 - Restore Backup with special characters",
+        "action": "RESTORE",
+        "username": "bob",
+        "filename": "backup_bob_20260220_140000.enc",
+        "file_content": "gAAAAABk...encrypted_data_bob...",
+        "original_blob": {
+            "site": "p@$$w0rd!#%^&*()"
+        },
+        "expected_restored_blob": {
+            "site": "p@$$w0rd!#%^&*()"
+        }
+    },
+    {
+        // TC9: Restore an empty vault backup
+        "name": "TC9 - Restore Backup with empty vault",
+        "action": "RESTORE",
+        "username": "charlie",
+        "filename": "backup_charlie_20260220_150000.enc",
+        "file_content": "gAAAAABk...encrypted_empty...",
+        "original_blob": {},
+        "expected_restored_blob": {}
+    },
+    {
+        // TC10: Restore backup for user with numeric username
+        "name": "TC10 - Restore Backup for numeric username",
+        "action": "RESTORE",
+        "username": "user123",
+        "filename": "backup_user123_20260220_160000.enc",
+        "file_content": "gAAAAABk...encrypted_user123...",
+        "original_blob": {
+            "vault_entry": "securepassword"
+        },
+        "expected_restored_blob": {
+            "vault_entry": "securepassword"
         }
     }
 ]
