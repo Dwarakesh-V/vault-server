@@ -1,3 +1,6 @@
+# IDE
+.vscode
+
 # Python
 __pycache__/
 *.pyc
@@ -26,3 +29,7 @@ backups/*.enc
 .coverage
 htmlcov/
 .pytest_cache/
+
+# Certificates
+cert.pem
+key.pem

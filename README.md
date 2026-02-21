@@ -2,7 +2,7 @@
 
 A secure, zero-knowledge password manager vault server with Multi-Factor Authentication (MFA) support.
 
-## 🔒 Features
+## Features
 
 - **Zero-Knowledge Architecture**: All encryption happens client-side; the server never sees your master password or unencrypted data
 - **Secure Authentication**: Uses SRP (Secure Remote Password) protocol with Argon2 key derivation
@@ -11,12 +11,12 @@ A secure, zero-knowledge password manager vault server with Multi-Factor Authent
 - **Backup Codes**: Recovery codes in case you lose access to your authenticator app
 - **RESTful API**: Simple and secure API for the password and the vault operations
 
-## 📋 Requirements
+## Requirements
 
 - Python 3.8+
 - pip (Python package manager)
 
-## 🚀 Installation
+## Installation
 
 ### 1. Clone or Navigate to the Project
 
@@ -44,7 +44,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## ▶️ Running the Server
+## Running the Server
 
 Start the FastAPI server using uvicorn:
 
@@ -79,7 +79,7 @@ To run the server securely with HTTPS/TLS (User Story 5.2):
    
    **Note**: Your browser will likely show a warning about a self-signed certificate. This is expected for local development; you can proceed safely by clicking "Advanced" -> "Proceed to localhost (unsafe)".
 
-## 🔐 Multi-Factor Authentication (MFA)
+## Multi-Factor Authentication (MFA)
 
 ### Supported Authenticator Apps
 
@@ -203,7 +203,7 @@ Response:
 }
 ```
 
-## 📖 API Reference
+## API Reference
 
 ### Authentication Endpoints
 
@@ -230,7 +230,7 @@ Response:
 | POST | `/mfa/verify` | Verify and enable MFA | No |
 | POST | `/mfa/disable` | Disable MFA | Yes |
 
-## 🔧 Configuration
+## Configuration
 
 ### Security Features (User Stories 5.5 & 5.6)
 
@@ -275,9 +275,9 @@ The server uses the following security configurations:
 - **Auth Database**: `server/auth_db.json` (stores user credentials and MFA secrets)
 - **Vault Data**: `server/data/{username}.json` (stores encrypted vault blobs)
 
-**⚠️ Security Note**: In production, use proper database systems and secure secret storage (e.g., HashiCorp Vault, AWS Secrets Manager)
+**Security Note**: In production, use proper database systems and secure secret storage (e.g., HashiCorp Vault, AWS Secrets Manager)
 
-## 🛡️ Security Best Practices
+## Security Best Practices
 
 ### Server-Side
 1. **Never log sensitive data** (passwords, tokens, MFA secrets)
@@ -301,7 +301,7 @@ The server uses the following security configurations:
 4. **Use time-synced devices** for accurate TOTP codes
 5. **Have recovery plan** in case of device loss
 
-## 🧪 Testing
+## Testing
 
 ### Manual Testing with cURL
 
@@ -325,7 +325,7 @@ curl -X POST http://localhost:8000/mfa/setup \
   -H "Authorization: YOUR_TOKEN_HERE"
 ```
 
-## 📂 Project Structure
+## Project Structure
 
 ```
 vault-server/
@@ -340,7 +340,7 @@ vault-server/
 └── README.md          # This file
 ```
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
@@ -364,15 +364,15 @@ vault-server/
 - Verify all dependencies are installed
 - Check Python version (3.8+ required)
 
-## 📝 License
+## License
 
 This is a educational/demonstration project. Use at your own risk in production environments.
 
-## 🤝 Contributing
+## Contributing
 
 This is a course project for Software Engineering. 
 
-## ⚠️ Disclaimer
+## Disclaimer
 
 This server is designed for educational purposes. For production use:
 - Implement proper database systems
@@ -382,9 +382,3 @@ This server is designed for educational purposes. For production use:
 - Regular security audits
 - Compliance with data protection regulations
 
-## 📞 Support
-
-For issues related to MFA setup or usage, refer to:
-- Your authenticator app's documentation
-- [RFC 6238 - TOTP Specification](https://tools.ietf.org/html/rfc6238)
-- FastAPI documentation: https://fastapi.tiangolo.com/
