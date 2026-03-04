@@ -28,5 +28,6 @@ if __name__ == "__main__":
         ssl_certfile="cert.pem",# X.509 certificate — sent to clients so they can verify identity
         reload=False,           # disable auto-reload; reload=True would break TLS in some setups
                                 # use reload=True only for plain HTTP development
-        timeout_keep_alive=75   # increase keep-alive to avoid race conditions with Dart client
+        timeout_keep_alive=75,  # increase keep-alive to avoid race conditions with Dart client
+        log_config="logging.conf" # use the custom logging configuration to write to server.log
     )

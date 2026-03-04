@@ -171,6 +171,7 @@ def login(req: LoginReq, request: Request):
         # Wrong password → count this as a failed attempt against the IP
         if "Invalid credentials" in str(e):
             security_manager.record_failed_attempt(client_ip, req.username)
+            log_action(req.username.lower(), "LOGIN_FAILED", "Invalid credentials provided")
 
         # Always return a generic 401 (never reveal which part was wrong)
         raise HTTPException(401, "Invalid credentials")
@@ -291,6 +292,7 @@ def mfa_verify(req: MFAVerifyReq, request: Request):
         else:
             # Code did not match (wrong digits / expired window)
             security_manager.record_failed_attempt(client_ip, username)
+            log_action(username, "MFA_VERIFY_FAILED", "Invalid MFA code provided")
             raise HTTPException(400, "Invalid MFA code")
 
     except ValueError as e:
@@ -331,6 +333,7 @@ def login_with_mfa(req: MFALoginReq, request: Request):
     except ValueError:
         # Wrong password → count as a failed attempt and return 401
         security_manager.record_failed_attempt(client_ip, username)
+        log_action(username, "LOGIN_FAILED", "Invalid password provided during MFA login")
         raise HTTPException(401, "Invalid username or password")
 
     # Step 3 — Validate the TOTP code (enable_on_success=False → don't re-enable MFA)
@@ -340,6 +343,7 @@ def login_with_mfa(req: MFALoginReq, request: Request):
         if not is_valid:
             # Wrong MFA code → count as a failed attempt and reject
             security_manager.record_failed_attempt(client_ip, username)
+            log_action(username, "LOGIN_FAILED", "Invalid MFA code provided during login")
             raise HTTPException(401, "Invalid MFA code")
 
         # Both factors verified → return the session token
