@@ -283,9 +283,10 @@ The server uses the following security configurations:
 1. **Never log sensitive data** (passwords, tokens, MFA secrets)
 2. **Use HTTPS** in production
 3. **Set up rate limiting** to prevent brute force attacks
-4. **Use secure session storage** (Redis, database)
-5. **Implement proper CORS** policies
-6. **Regular security updates** for all dependencies
+4. **Audit Logging**: All security events are logged using Fernet symmetric encryption (AES-128-CBC + HMAC-SHA256) at rest.
+5. **Use secure session storage** (Redis, database)
+6. **Implement proper CORS** policies
+7. **Regular security updates** for all dependencies
 
 ### Client-Side
 1. **Never send master password** to server
