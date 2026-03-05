@@ -26,6 +26,8 @@ if __name__ == "__main__":
         port=8000,              # port number; Flutter app connects to https://127.0.0.1:8000
         ssl_keyfile="key.pem",  # RSA private key — used to decrypt incoming TLS handshakes
         ssl_certfile="cert.pem",# X.509 certificate — sent to clients so they can verify identity
-        reload=False            # disable auto-reload; reload=True would break TLS in some setups
+        reload=False,           # disable auto-reload; reload=True would break TLS in some setups
                                 # use reload=True only for plain HTTP development
+        timeout_keep_alive=75,  # increase keep-alive to avoid race conditions with Dart client
+        log_config="logging.conf" # use the custom logging configuration to write to server.log
     )

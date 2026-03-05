@@ -25,6 +25,7 @@ def verify_admin(credentials: HTTPBasicCredentials = Depends(security)):
 from server.auth import (
     register_user,       # create a new user account
     login_user,          # validate credentials and issue a session token
+    logout_user,         # invalidate a session token
     get_auth_salt,       # return the client-side salt needed to derive the verifier
     require_auth,        # parse & validate an Authorization header token
     setup_mfa,           # generate a TOTP secret + QR code for a user
@@ -117,7 +118,11 @@ def register(req: RegisterReq, request: Request):
     client_ip = request.client.host   # extract the caller's IP for rate-limit tracking
 
     try:
+        # Check if the IP is already blocked
+        security_manager.check_rate_limit(client_ip)
+
         register_user(req.username.lower(), req.salt, req.verifier)
+        log_action(req.username.lower(), "REGISTER", "New user registered")
         return {"ok": True}
 
     except ValueError as e:
@@ -125,8 +130,12 @@ def register(req: RegisterReq, request: Request):
         if "IP blocked" in str(e):
             raise HTTPException(429, str(e))
 
+        # Failed registration (e.g. user exists) - we can also count this as a failed attempt
+        # to prevent enumeration or spam
+        security_manager.record_failed_attempt(client_ip, req.username.lower())
+        
         # Any other ValueError means the username is already taken → 400
-        raise HTTPException(400, "User exists")
+        raise HTTPException(400, "Registration failed or user exists")
 
 
 @app.post("/login")
@@ -151,6 +160,7 @@ def login(req: LoginReq, request: Request):
 
         # Step 3 — Successful login: reset the failure counter for this IP
         security_manager.reset_attempts(client_ip)
+        log_action(req.username.lower(), "LOGIN", "User logged in")
         return {"token": token}
 
     except ValueError as e:
@@ -161,9 +171,27 @@ def login(req: LoginReq, request: Request):
         # Wrong password → count this as a failed attempt against the IP
         if "Invalid credentials" in str(e):
             security_manager.record_failed_attempt(client_ip, req.username)
+            log_action(req.username.lower(), "LOGIN_FAILED", "Invalid credentials provided")
 
         # Always return a generic 401 (never reveal which part was wrong)
         raise HTTPException(401, "Invalid credentials")
+
+@app.post("/logout")
+def logout(authorization: str = Header(None)):
+    """
+    Invalidate the current session token.
+    """
+    if not authorization:
+         return {"ok": True}
+         
+    try:
+        username = require_auth(authorization)
+        logout_user(authorization)
+        log_action(username, "LOGOUT", "User logged out")
+    except ValueError:
+        pass # Token already invalid or expired
+        
+    return {"ok": True}
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -248,16 +276,23 @@ def mfa_verify(req: MFAVerifyReq, request: Request):
     This endpoint is also rate-limited: if the IP is blocked, return 429.
     """
     client_ip = request.client.host
+    username = req.username.lower()
 
     try:
+        # Check if the IP is already blocked
+        security_manager.check_rate_limit(client_ip)
+
         # Validate the 6-digit TOTP code (strip whitespace to avoid typos)
-        is_valid = verify_mfa(req.username.lower(), req.code.strip())
+        is_valid = verify_mfa(username, req.code.strip())
 
         if is_valid:
             # Code matched → MFA is now active for this user
+            log_action(username, "MFA_ENABLED", "MFA enabled successfully")
             return {"ok": True, "message": "MFA enabled successfully"}
         else:
             # Code did not match (wrong digits / expired window)
+            security_manager.record_failed_attempt(client_ip, username)
+            log_action(username, "MFA_VERIFY_FAILED", "Invalid MFA code provided")
             raise HTTPException(400, "Invalid MFA code")
 
     except ValueError as e:
@@ -298,6 +333,7 @@ def login_with_mfa(req: MFALoginReq, request: Request):
     except ValueError:
         # Wrong password → count as a failed attempt and return 401
         security_manager.record_failed_attempt(client_ip, username)
+        log_action(username, "LOGIN_FAILED", "Invalid password provided during MFA login")
         raise HTTPException(401, "Invalid username or password")
 
     # Step 3 — Validate the TOTP code (enable_on_success=False → don't re-enable MFA)
@@ -305,10 +341,14 @@ def login_with_mfa(req: MFALoginReq, request: Request):
         is_valid = verify_mfa(username, req.mfa_code.strip(), enable_on_success=False)
 
         if not is_valid:
-            # Wrong MFA code → reject (don't return the token)
+            # Wrong MFA code → count as a failed attempt and reject
+            security_manager.record_failed_attempt(client_ip, username)
+            log_action(username, "LOGIN_FAILED", "Invalid MFA code provided during login")
             raise HTTPException(401, "Invalid MFA code")
 
         # Both factors verified → return the session token
+        security_manager.reset_attempts(client_ip) # Clear failures after full success
+        log_action(username, "LOGIN", "User logged in (MFA)")
         return {"token": token}
 
     except ValueError as e:

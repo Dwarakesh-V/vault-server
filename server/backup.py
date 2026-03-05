@@ -175,48 +175,80 @@ def list_backups(username: str):
     # ── Scan every entry in the backup directory ───────────────────────────────
     for f in BACKUP_DIR.iterdir():        # iterate over all files & subdirs in backups/
 
-        # Only process files (skip subdirectories) whose name matches the user's
-        # prefix AND whose extension is .enc (encrypted backups only)
-        if f.is_file() and f.name.startswith(prefix) and f.suffix == '.enc':
+        # Only process files (skip subdirectories) with .enc extension
+        if not f.is_file() or f.suffix != '.enc':
+            continue
 
-            # ── Timestamp parsing ──────────────────────────────────────────────
-            timestamp = None
-            try:
-                # Strip the prefix and the .enc suffix to isolate the timestamp string
-                # e.g. "backup_alice_20260221_080000_123456.enc"
-                #       stem → "backup_alice_20260221_080000_123456"
-                #       after strip → "20260221_080000_123456"
-                ts_str = f.stem[len(prefix):]
+        filename = f.name
+        # Backup filenames follow the format: backup_{username}_{timestamp}.enc
+        # We need to extract the username part to avoid prefix collisions.
+        # e.g., "backup_mahi_2026..." vs "backup_mahitha_2026..."
+        
+        # All backups start with "backup_"
+        if not filename.startswith("backup_"):
+            continue
+            
+        # Strip "backup_" and ".enc"
+        # "backup_alice_20260221_080000.enc" -> "alice_20260221_080000"
+        stem = f.stem[7:] 
+        
+        # The username is everything before the first of the last two underscores 
+        # (since timestamp has two: %Y%m%d_%H%M%S or three with %f)
+        # However, a safer way is to find the LAST occurrence of a timestamp pattern or 
+        # just check if it matches backup_{username}_<timestamp>.enc exactly.
+        
+        expected_start = f"backup_{username}_"
+        if not filename.startswith(expected_start):
+            continue
+            
+        # To be absolutely sure it's not a prefix collision (mahi vs mahitha)
+        # we check the character immediately following the username in the filename.
+        # The expected_start already ends in '_', so we just need to verify that 
+        # the part we stripped doesn't contain extra characters that make up a longer username.
+        
+        # Extract the part after backup_{username}_
+        remaining = filename[len(expected_start):]
+        
+        # The remaining part MUST start with the timestamp (digits)
+        # If it doesn't start with a digit, it's likely a longer username 
+        # (e.g. backup_mahitha_... matched by backup_mahi_ because 'h' is there)
+        if not (remaining and remaining[0].isdigit()):
+            continue
 
-                # Try both timestamp formats:
-                #   New format (microseconds): %Y%m%d_%H%M%S_%f  e.g. 20260221_080000_123456
-                #   Old format (no micros)   : %Y%m%d_%H%M%S     e.g. 20260221_080000
-                for fmt in ("%Y%m%d_%H%M%S_%f", "%Y%m%d_%H%M%S"):
-                    try:
-                        dt = datetime.datetime.strptime(ts_str, fmt)
-                        break          # successfully parsed → stop trying formats
-                    except ValueError:
-                        continue       # this format didn't match → try the next one
-                else:
-                    # The for-loop completed without a break → neither format matched
-                    raise ValueError("Unknown timestamp format")
+        # ── Timestamp parsing ──────────────────────────────────────────────
+        timestamp = None
+        try:
+            # The timestamp string is the 'remaining' part minus the .enc extension
+            ts_str = Path(remaining).stem
 
-                timestamp = dt.isoformat()   # convert to ISO-8601 string for the API
+            # Try both timestamp formats:
+            #   New format (microseconds): %Y%m%d_%H%M%S_%f  e.g. 20260221_080000_123456
+            #   Old format (no micros)   : %Y%m%d_%H%M%S     e.g. 20260221_080000
+            for fmt in ("%Y%m%d_%H%M%S_%f", "%Y%m%d_%H%M%S"):
+                try:
+                    dt = datetime.datetime.strptime(ts_str, fmt)
+                    break          # successfully parsed → stop trying formats
+                except ValueError:
+                    continue       # this format didn't match → try the next one
+            else:
+                # The for-loop completed without a break → neither format matched
+                # Fallback to file mtime if the timestamp in filename is non-standard
+                dt = datetime.datetime.fromtimestamp(f.stat().st_mtime)
 
-            except ValueError:
-                # Fallback: if the filename timestamp can't be parsed, use the
-                # file's last-modified time from the OS filesystem metadata
-                timestamp = datetime.datetime.fromtimestamp(f.stat().st_mtime).isoformat()
+            timestamp = dt.isoformat()   # convert to ISO-8601 string for the API
 
-            # Append this backup's metadata to the result list
-            backups.append({
-                "filename":  f.name,
-                "timestamp": timestamp,
-                "size":      f.stat().st_size   # size in bytes
-            })
+        except Exception:
+            # Fallback: if any parsing fails, use the file's last-modified time
+            timestamp = datetime.datetime.fromtimestamp(f.stat().st_mtime).isoformat()
+
+        # Append this backup's metadata to the result list
+        backups.append({
+            "filename":  filename,
+            "timestamp": timestamp,
+            "size":      f.stat().st_size   # size in bytes
+        })
 
     # Sort the list by filename in descending order so the newest backup appears first
-    # (filename contains the timestamp so lexicographic order == chronological order)
     backups.sort(key=lambda x: x["filename"], reverse=True)
     return backups
 

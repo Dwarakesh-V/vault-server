@@ -53,6 +53,11 @@ def login_user(username: str, verifier: str):
     SESSIONS[token] = username
     return token
 
+def logout_user(token: str):
+    """Invalidates a session token by removing it from the active SESSIONS."""
+    if token in SESSIONS:
+        del SESSIONS[token]
+
 def require_auth(token: str):
     if token not in SESSIONS:
         raise ValueError("Unauthorized")

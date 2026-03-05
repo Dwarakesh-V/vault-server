@@ -1,8 +1,8 @@
-
 import time
+import os
 from datetime import datetime, timedelta
 from typing import Dict, Tuple
-
+from server.audit import log_action
 
 class SecurityManager:
     """
@@ -30,11 +30,10 @@ class SecurityManager:
         self.blocked_ips: Dict[str, float] = {}
 
         # ── Tunable configuration ──────────────────────────────────────────
-        self.MAX_ATTEMPTS  = 5    # number of failures before the IP is blocked
-        self.TIME_WINDOW   = 300  # sliding window in seconds (5 minutes)
-                                  # failures older than this are ignored / reset
-        self.BLOCK_DURATION = 60  # how long (seconds) a blocked IP must wait
-                                  # set to 60s for testing; use 900s in production
+        # Load thresholds from environment variables with defaults
+        self.MAX_ATTEMPTS  = int(os.getenv("VAULT_MAX_LOGIN_ATTEMPTS", 5))
+        self.TIME_WINDOW   = int(os.getenv("VAULT_LOGIN_WINDOW_SECONDS", 300))
+        self.BLOCK_DURATION = int(os.getenv("VAULT_BLOCK_DURATION_SECONDS", 60))
 
     # ──────────────────────────────────────────────────────────────────────────
     def check_rate_limit(self, ip_address: str):
@@ -118,14 +117,17 @@ class SecurityManager:
                     self.blocked_ips[ip_address] = current_time + self.BLOCK_DURATION
 
                     # Log a security alert to the server console
-                    print(
-                        f"SECURITY ALERT: Blocked IP {ip_address} "
-                        f"after {new_count} failed attempts."
-                    )
+                    alert_msg = f"SECURITY ALERT: Blocked IP {ip_address} after {new_count} failed attempts."
+                    print(alert_msg)
+
+                    # Also record in the audit log for persistent monitoring
+                    log_action("SYSTEM", "SECURITY_BLOCK", alert_msg)
 
                     # If a username was provided, log that too for investigation
                     if username:
-                        print(f"Suspicious activity detected for user: {username}")
+                        user_alert = f"Suspicious activity detected for user: {username}"
+                        print(user_alert)
+                        log_action(username, "SECURITY_SUSPICIOUS", user_alert)
 
     # ──────────────────────────────────────────────────────────────────────────
     def reset_attempts(self, ip_address: str):
